@@ -1,4 +1,5 @@
 let quotes = [];
+const SERVER_URL = "https://jsonplaceholder.typicode.com/posts"; // Simulated API
 
 function loadQuotes() {
   const stored = localStorage.getItem("quotes");
@@ -20,19 +21,19 @@ function saveQuotes() {
 
 function showRandomQuote() {
   const selected = document.getElementById("categoryFilter").value;
-  const candidates = selected === "all"
+  const filtered = selected === "all"
     ? quotes
     : quotes.filter(q => q.category === selected);
 
-  if (candidates.length === 0) {
-    quoteDisplay.innerHTML = `<p>No quotes found for this category.</p>`;
+  const quoteDisplay = document.getElementById("quoteDisplay");
+
+  if (filtered.length === 0) {
+    quoteDisplay.innerHTML = "<p>No quotes for this category.</p>";
     return;
   }
 
-  const random = candidates[Math.floor(Math.random() * candidates.length)];
-  const quoteDisplay = document.getElementById("quoteDisplay");
+  const random = filtered[Math.floor(Math.random() * filtered.length)];
   quoteDisplay.innerHTML = `<p>"${random.text}"</p><p><em>Category: ${random.category}</em></p>`;
-
   sessionStorage.setItem("lastQuote", JSON.stringify(random));
 }
 
@@ -80,12 +81,11 @@ function populateCategories() {
   const categories = [...new Set(quotes.map(q => q.category))];
 
   dropdown.innerHTML = '<option value="all">All Categories</option>';
-
   categories.forEach(cat => {
-    const opt = document.createElement("option");
-    opt.value = cat;
-    opt.textContent = cat;
-    dropdown.appendChild(opt);
+    const option = document.createElement("option");
+    option.value = cat;
+    option.textContent = cat;
+    dropdown.appendChild(option);
   });
 
   const saved = localStorage.getItem("selectedCategory");
@@ -105,8 +105,8 @@ function exportQuotes() {
   const data = JSON.stringify(quotes, null, 2);
   const blob = new Blob([data], { type: "application/json" });
   const url = URL.createObjectURL(blob);
-
   const link = document.createElement("a");
+
   link.href = url;
   link.download = "quotes.json";
   link.click();
@@ -125,13 +125,56 @@ function importFromJsonFile(event) {
         populateCategories();
         alert("Quotes imported successfully!");
       } else {
-        alert("Invalid JSON structure.");
+        alert("Invalid JSON format.");
       }
     } catch (err) {
-      alert("Import error: " + err.message);
+      alert("Error: " + err.message);
     }
   };
   reader.readAsText(event.target.files[0]);
+}
+
+function mergeQuotes(local, server) {
+  const mergedMap = new Map();
+  [...local, ...server].forEach(q => {
+    const key = `${q.text.trim()}|${q.category.trim()}`;
+    mergedMap.set(key, q);
+  });
+  return Array.from(mergedMap.values());
+}
+
+function notifySync(message) {
+  const div = document.createElement("div");
+  div.textContent = message;
+  div.style.position = "fixed";
+  div.style.bottom = "20px";
+  div.style.right = "20px";
+  div.style.backgroundColor = "#000";
+  div.style.color = "#fff";
+  div.style.padding = "10px 20px";
+  div.style.borderRadius = "5px";
+  div.style.zIndex = "1000";
+  document.body.appendChild(div);
+  setTimeout(() => div.remove(), 4000);
+}
+
+async function syncWithServer() {
+  try {
+    const res = await fetch(SERVER_URL);
+    const serverData = await res.json();
+
+    const serverQuotes = serverData.map(item => ({
+      text: item.body || item.text,
+      category: item.title || item.category || "General"
+    }));
+
+    quotes = mergeQuotes(quotes, serverQuotes);
+    saveQuotes();
+    populateCategories();
+    notifySync("Quotes synced with server. Conflicts resolved.");
+  } catch (error) {
+    console.error("Sync failed:", error);
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -146,4 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("quoteDisplay").innerHTML =
       `<p>"${q.text}"</p><p><em>Category: ${q.category}</em></p>`;
   }
+
+  syncWithServer();
+  setInterval(syncWithServer, 30000);
 });
