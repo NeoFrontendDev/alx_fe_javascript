@@ -1,5 +1,5 @@
 let quotes = [];
-const SERVER_URL = "https://jsonplaceholder.typicode.com/posts"; // Simulated API
+const SERVER_URL = "https://jsonplaceholder.typicode.com/posts"; // Simulated server
 
 function loadQuotes() {
   const stored = localStorage.getItem("quotes");
@@ -158,23 +158,29 @@ function notifySync(message) {
   setTimeout(() => div.remove(), 4000);
 }
 
-async function syncWithServer() {
+async function fetchQuotesFromServer() {
   try {
-    const res = await fetch(SERVER_URL);
-    const serverData = await res.json();
+    const response = await fetch(SERVER_URL);
+    const data = await response.json();
 
-    const serverQuotes = serverData.map(item => ({
-      text: item.body || item.text,
+    const serverQuotes = data.map(item => ({
+      text: item.body || item.text || "No quote text",
       category: item.title || item.category || "General"
     }));
 
-    quotes = mergeQuotes(quotes, serverQuotes);
-    saveQuotes();
-    populateCategories();
-    notifySync("Quotes synced with server. Conflicts resolved.");
+    return serverQuotes;
   } catch (error) {
-    console.error("Sync failed:", error);
+    console.error("Failed to fetch quotes:", error);
+    return [];
   }
+}
+
+async function syncWithServer() {
+  const serverQuotes = await fetchQuotesFromServer();
+  quotes = mergeQuotes(quotes, serverQuotes);
+  saveQuotes();
+  populateCategories();
+  notifySync("Quotes synced with server. Conflicts resolved.");
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -191,5 +197,5 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   syncWithServer();
-  setInterval(syncWithServer, 30000);
+  setInterval(syncWithServer, 30000); // Auto-sync every 30 seconds
 });
