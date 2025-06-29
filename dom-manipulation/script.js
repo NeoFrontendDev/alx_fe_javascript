@@ -1,18 +1,14 @@
 let quotes = [];
-const SERVER_URL = "https://jsonplaceholder.typicode.com/posts"; // Simulated server
+const SERVER_URL = "https://jsonplaceholder.typicode.com/posts"; // Replace with your real endpoint
 
 function loadQuotes() {
   const stored = localStorage.getItem("quotes");
-  if (stored) {
-    quotes = JSON.parse(stored);
-  } else {
-    quotes = [
-      { text: "You miss 100% of the shots you don’t take.", category: "Motivation" },
-      { text: "Simplicity is the soul of efficiency.", category: "Productivity" },
-      { text: "Code is like humor. When you have to explain it, it’s bad.", category: "Tech" }
-    ];
-    saveQuotes();
-  }
+  quotes = stored ? JSON.parse(stored) : [
+    { text: "You miss 100% of the shots you don’t take.", category: "Motivation" },
+    { text: "Simplicity is the soul of efficiency.", category: "Productivity" },
+    { text: "Code is like humor. When you have to explain it, it’s bad.", category: "Tech" }
+  ];
+  saveQuotes();
 }
 
 function saveQuotes() {
@@ -21,13 +17,10 @@ function saveQuotes() {
 
 function showRandomQuote() {
   const selected = document.getElementById("categoryFilter").value;
-  const filtered = selected === "all"
-    ? quotes
-    : quotes.filter(q => q.category === selected);
-
+  const filtered = selected === "all" ? quotes : quotes.filter(q => q.category === selected);
   const quoteDisplay = document.getElementById("quoteDisplay");
 
-  if (filtered.length === 0) {
+  if (!filtered.length) {
     quoteDisplay.innerHTML = "<p>No quotes for this category.</p>";
     return;
   }
@@ -41,16 +34,32 @@ function addQuote() {
   const text = document.getElementById("newQuoteText").value.trim();
   const category = document.getElementById("newQuoteCategory").value.trim();
 
-  if (text && category) {
-    quotes.push({ text, category });
-    saveQuotes();
-    populateCategories();
-    alert("Quote added!");
-    document.getElementById("newQuoteText").value = "";
-    document.getElementById("newQuoteCategory").value = "";
-  } else {
+  if (!text || !category) {
     alert("Please fill in both fields.");
+    return;
   }
+
+  const newQuote = { text, category };
+  quotes.push(newQuote);
+  saveQuotes();
+  populateCategories();
+  alert("Quote added!");
+
+  document.getElementById("newQuoteText").value = "";
+  document.getElementById("newQuoteCategory").value = "";
+
+  fetch(SERVER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: category,
+      body: text,
+      userId: 1
+    })
+  })
+  .then(res => res.json())
+  .then(data => console.log("Posted to server:", data))
+  .catch(err => console.error("POST error:", err));
 }
 
 function createAddQuoteForm() {
@@ -60,20 +69,16 @@ function createAddQuoteForm() {
   const inputText = document.createElement("input");
   inputText.id = "newQuoteText";
   inputText.placeholder = "Enter a new quote";
-  inputText.style.marginRight = "10px";
 
-  const inputCategory = document.createElement("input");
-  inputCategory.id = "newQuoteCategory";
-  inputCategory.placeholder = "Enter quote category";
-  inputCategory.style.marginRight = "10px";
+  const inputCat = document.createElement("input");
+  inputCat.id = "newQuoteCategory";
+  inputCat.placeholder = "Enter quote category";
 
-  const addBtn = document.createElement("button");
-  addBtn.textContent = "Add Quote";
-  addBtn.addEventListener("click", addQuote);
+  const button = document.createElement("button");
+  button.textContent = "Add Quote";
+  button.addEventListener("click", addQuote);
 
-  container.appendChild(inputText);
-  container.appendChild(inputCategory);
-  container.appendChild(addBtn);
+  container.append(inputText, inputCat, button);
 }
 
 function populateCategories() {
@@ -102,15 +107,13 @@ function filterQuotes() {
 }
 
 function exportQuotes() {
-  const data = JSON.stringify(quotes, null, 2);
-  const blob = new Blob([data], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(quotes, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
   link.href = url;
   link.download = "quotes.json";
   link.click();
-
   URL.revokeObjectURL(url);
 }
 
@@ -118,59 +121,53 @@ function importFromJsonFile(event) {
   const reader = new FileReader();
   reader.onload = function (e) {
     try {
-      const incoming = JSON.parse(e.target.result);
-      if (Array.isArray(incoming)) {
-        quotes.push(...incoming);
+      const imported = JSON.parse(e.target.result);
+      if (Array.isArray(imported)) {
+        quotes.push(...imported);
         saveQuotes();
         populateCategories();
-        alert("Quotes imported successfully!");
+        alert("Quotes imported!");
       } else {
-        alert("Invalid JSON format.");
+        alert("Invalid file format.");
       }
     } catch (err) {
-      alert("Error: " + err.message);
+      alert("Import error: " + err.message);
     }
   };
   reader.readAsText(event.target.files[0]);
 }
 
 function mergeQuotes(local, server) {
-  const mergedMap = new Map();
+  const map = new Map();
   [...local, ...server].forEach(q => {
     const key = `${q.text.trim()}|${q.category.trim()}`;
-    mergedMap.set(key, q);
+    map.set(key, q);
   });
-  return Array.from(mergedMap.values());
+  return Array.from(map.values());
 }
 
 function notifySync(message) {
   const div = document.createElement("div");
   div.textContent = message;
-  div.style.position = "fixed";
-  div.style.bottom = "20px";
-  div.style.right = "20px";
-  div.style.backgroundColor = "#000";
-  div.style.color = "#fff";
-  div.style.padding = "10px 20px";
-  div.style.borderRadius = "5px";
-  div.style.zIndex = "1000";
+  Object.assign(div.style, {
+    position: "fixed", bottom: "20px", right: "20px",
+    backgroundColor: "#333", color: "#fff", padding: "10px 20px",
+    borderRadius: "4px", zIndex: 1000
+  });
   document.body.appendChild(div);
   setTimeout(() => div.remove(), 4000);
 }
 
 async function fetchQuotesFromServer() {
   try {
-    const response = await fetch(SERVER_URL);
-    const data = await response.json();
-
-    const serverQuotes = data.map(item => ({
-      text: item.body || item.text || "No quote text",
+    const res = await fetch(SERVER_URL);
+    const data = await res.json();
+    return data.map(item => ({
+      text: item.body || item.text || "Untitled",
       category: item.title || item.category || "General"
     }));
-
-    return serverQuotes;
-  } catch (error) {
-    console.error("Failed to fetch quotes:", error);
+  } catch (err) {
+    console.error("Fetch failed:", err);
     return [];
   }
 }
@@ -180,7 +177,7 @@ async function syncWithServer() {
   quotes = mergeQuotes(quotes, serverQuotes);
   saveQuotes();
   populateCategories();
-  notifySync("Quotes synced with server. Conflicts resolved.");
+  notifySync("Quotes synced with server.");
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -197,5 +194,5 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   syncWithServer();
-  setInterval(syncWithServer, 30000); // Auto-sync every 30 seconds
+  setInterval(syncWithServer, 30000);
 });
