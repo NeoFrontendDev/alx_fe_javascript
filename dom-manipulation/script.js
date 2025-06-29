@@ -210,3 +210,11 @@ document.addEventListener("DOMContentLoaded", () => {
   syncWithServer();
   setInterval(syncWithServer, 30000);
 });
+
+async function syncWithServer() {
+  const serverQuotes = await fetchQuotesFromServer();
+  quotes = mergeQuotes(quotes, serverQuotes);
+  saveQuotes();
+  populateCategories();
+  notifySync("Quotes synced with server!");
+}
