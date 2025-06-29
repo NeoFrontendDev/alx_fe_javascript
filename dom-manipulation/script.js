@@ -193,6 +193,20 @@ document.addEventListener("DOMContentLoaded", () => {
       `<p>"${q.text}"</p><p><em>Category: ${q.category}</em></p>`;
   }
 
+  function syncQuotes() {
+  fetchQuotesFromServer()
+    .then(serverQuotes => {
+      quotes = mergeQuotes(quotes, serverQuotes);
+      saveQuotes();
+      populateCategories();
+      notifySync("Manual sync completed. Quotes updated.");
+    })
+    .catch(error => {
+      console.error("Manual sync failed:", error);
+      notifySync("Manual sync failed.");
+    });
+}
+
   syncWithServer();
   setInterval(syncWithServer, 30000);
 });
